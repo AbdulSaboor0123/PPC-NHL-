@@ -1,0 +1,62 @@
+Select Sum(Nvl(D2.Gross_Amnt, 0)) Gross_Amnt,
+       Sum(Nvl(D2.Bills, 0)) New_Bill,
+       Sum(Nvl(D2.Covers, 0)) New_Covers,
+       D2.In_Time New_Time,
+       D2.New_Date New_Date
+  From (
+        
+        Select
+        
+       --------------------Gross Amount-------------------------------------
+     SUM(ROUND(PPDET.DNET_AMNT,2) -
+           ROUND((PPDET.DNET_AMNT * NVL(POS.DISC_AMOUNT, 0)) / 100, 2) +
+           ROUND(PPDET.DNET_STAX_AMNT, 2))
+           GROSS_AMNT,
+         ---------------------------------------------------------------------
+          
+          Count(Pos.Pos_No) Bills,
+          Sum(Pos.Covers) Covers,
+          To_Char(Pos.In_Time, 'HH24') In_Time,
+          To_Char(Pos.Pos_Date, 'dd-Mon-yy') New_Date
+        
+          From Yum_Pos_Mt       Pos,
+               Employee_Mt      Emt,
+               Inv_Books_Mt     Ib,
+               Yum_Pos_Receipt  Rec, 
+          
+                (Select Pdet.Pos_Id, Sum(Pdet.Amount) Dnet_Amnt,
+                sum(pdet.stax_amount) dnet_stax_Amnt
+                   From Yum_Pos_Det Pdet
+                  Where Pdet.Void_Line_Yn = 0
+                  Group By Pdet.Pos_Id) Ppdet,
+                
+                (Select Substr(Stax.Stax_Group_Desc, 1, 2) Stax_g, Pt.Pos_Id
+                   From Yum_Pos_Table_Mt   Pt,
+                        Yum_Table          t,
+                        Yum_Pos_Floor      Pf,
+                        Yum_Pos_Unit_Floor Fl,
+                        Yum_Pos_Unit       Unit,
+                        Stax_Group_Mt      Stax
+                  Where Pt.Table_Id        = t.Table_Id
+                    And t.Floor_Id         = Pf.Floor_Id
+                    AND PT.MAIN_TABLE_YN   = 1
+                    And Pf.Active_Yn       = 1
+                    And t.Active_Yn        = 1
+                    And Pf.Floor_Id        = Fl.Floor_Id
+                    And Fl.Pos_Unit_Id     = Unit.Pos_Unit_Id
+                    And Unit.Sale_Tax_Grp  = Stax.Stax_Group_Id
+                        &Parm_Where_u
+                   Order By Pt.Pos_Table_Id, Pt.Pos_Id) Pos_t
+        
+         Where Pos.Pos_Id     = Ppdet.Pos_Id
+          And Pos.Pos_Id      = Pos_t.Pos_Id 
+          AND Pos.Inv_Book_Id = Ib.Inv_Book_Id
+          AND Pos.Entered_By  = Emt.Employee_Id(+)
+          And Pos.Pos_Id      = Rec.Pos_Id
+   AND POS.VOID_YN=0
+   AND POS.SETTLED_YN=1 
+           &Parm_Where
+         Group By Pos.Pos_Date, Pos.In_Time) D2
+ Group By D2.New_Date, D2.In_Time
+
+ Order By D2.New_Date, D2.In_Time

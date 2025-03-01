@@ -1,0 +1,340 @@
+Select
+sum(q2.net_qty)  net_qty
+,sum(q2.net_amt)  net_amt
+,q2.item_id
+,q2.menu
+,q2.menu_id
+,q2.catagory
+,q2.catagory_id
+,q2.im_name
+,Sum(q2.EXC)  EXC
+,Sum(q2.stax_amount) stax_amount
+--,q2.Item_Rate_In_Func_Curr
+,Sum(q2.EXC)/sum(q2.net_qty) Item_Rate
+,q2.item_code
+,q2.unit_desc unit_desc
+From 
+ 
+ (  --------This is Q2
+-----------MENU LIST REPORT
+Select
+ sum(q1.net_qty)  net_qty
+,sum(q1.net_amt)  net_amt
+,Sum(q1.stax_amount) stax_amount
+,q1.item_id
+,q1.menu
+,q1.menu_id
+,q1.catagory
+,q1.catagory_id
+,q1.im_name
+,/*q1.Item_Rate_In_Func_Curr*sum(q1.net_qty)*/  sum(q1.EXC) EXC
+,q1.Item_Rate_In_Func_Curr
+,q1.item_code
+,q1.pos_unit_desc unit_desc
+-----------this query is taken from monthly menu listwise report 
+-----------due to when client match this report with monthly menu listwise report
+---------- amount mismatch  (by amir 02-07-14)
+
+From 
+
+ (                         
+ Select
+  Trunc(Sum(Pd.Sqty)) Net_Qty,
+	sum(nvl(pd.samt,0)) EXC,
+  ((Sum(Nvl(Pd.Samt, 0)) + Sum(Nvl(Pd.Stax, 0)) -
+                 Sum(Decode(Pm.Disc_Amount, 0, 0, Pd.Samt * Pm.Disc_Amount / 100)))) Net_Amt
+
+           ,To_Char(Pm.Pos_Date, 'YYYYMM') Ord_Year_Mon,
+           
+           To_Char(Pm.Pos_Date, 'MON-YY') Month
+           ,Sum(nvl(pd.stax,0)) stax_amount
+           ,Pd.Item_Id,
+           pd.Item_Desc,
+           pd.Menu,
+           pd.Catagory
+          ,pd.catagory_id 
+          ,pd.menu_id
+          ,pd.Item_Rate_In_Func_Curr
+          ,pd.item_code
+          ,unit.Pos_Unit_Desc
+          , '(' || PD.ITEM_CODE || ')-' || PD.ITEM_DESC IM_NAME
+            From Yum_Pos_Mt Pm,
+                 Inv_Books_Mt Ibm,
+                 Yum_Pos_Unit Unit,
+                 employee_mt   void_by_mt,
+                 (Select d.Pos_Id,
+                         d.Item_Id,
+                         itm.Item_Code,
+                         Itm.Item_Desc,
+                         Seg2.Segment_Value_Desc || '( ' || Seg2.Segment_Value || ' )' Menu,
+                         Seg3.Segment_Value_Desc || '( ' || Seg3.Segment_Value || ' )' Catagory
+                         ,seg3.Segment_Value                                            catagory_id
+                         ,seg2.Segment_Value                                            menu_id
+                         ,tt.Item_Rate_In_Func_Curr
+                         ,Sum(d.Quantity) Sqty,
+                         Sum(d.Amount) Samt,
+                         Sum(Nvl(d.Stax_Amount, 0)) Stax
+
+                         ,Trunc(Sum(d.Quantity)) Net_Qty,
+                         ((Sum(Nvl(d.Amount, 0)) + Sum(Nvl(d.Stax_Amount, 0)) -
+                 Sum(Decode(Pm.Disc_Amount, 0, 0, d.Amount * Pm.Disc_Amount / 100)))) Net_Amt
+
+                    From Yum_Pos_Mt             pm,
+                         Yum_Pos_Det            d
+                        ,inv_books_mt           ibm
+                        ,Yum_Pos_Unit           unit
+                        ,Items_Mt               Itm
+                        ,Detail_Price_List      tt
+                        ,Price_List_Grp_Det     m
+                        ,Items_Category         Icat
+                        ,Code_Combinations      Cc
+                        ,Wiz_Segment03          Seg3
+                        ,Wiz_Segment02          Seg2
+                        ,employee_mt            void_by_det
+                   Where pm.inv_book_id          = ibm.Inv_Book_Id
+                   And ibm.Inv_Book_Id          = unit.Inv_Book_Id
+                   And pm.Pos_Id                 = d.Pos_Id
+                   --And ibm.Inv_Book_Id            =
+                   And pm.Pos_Date Between :PARM_FROM_DATE And :PARM_TO_DATE
+                   And d.Void_Line_Yn           = DECODE(:PARM_VOID_SALE_YN,'Y',1,'N',0,'B',d.void_line_yn)
+                   And d.Item_Id                = itm.Item_Id
+                   And tt.Item_Id               = itm.Item_Id
+                   And tt.Price_List_Grp_Det_Id = m.Price_List_Grp_Det_Id
+                   And itm.Item_Id              = icat.Item_Id
+                   And icat.Code_Combination_Id = cc.Code_Combination_Id
+                   And Cc.Segment_Id03          = Seg3.Segment_Id
+                   And Seg3.Structure_Id        = Cc.Structure_Id
+                   And Cc.Segment_Id02          = Seg2.Segment_Id
+                   And Seg2.Structure_Id        = Cc.Structure_Id
+                   and d.Void_Approved_By       = void_by_det.employee_id(+)
+                   and nvl(d.Void_Approved_By,-1)        = NVL(:PARM_VOID_BY,nvl(d.Void_Approved_By,-1))
+                   Group By d.Pos_Id, d.Item_Id
+                   ,Itm.Item_Desc,
+                   itm.item_code,
+                   Seg2.Segment_Value_Desc || '( ' || Seg2.Segment_Value || ' )' ,
+                   Seg3.Segment_Value_Desc || '( ' || Seg3.Segment_Value || ' )'
+                   ,seg3.Segment_Value
+                   ,seg2.Segment_Value
+                   ,tt.Item_Rate_In_Func_Curr
+                   
+                   ) Pd
+           Where Pm.Pos_Id                       = Pd.Pos_Id
+             And Pm.Inv_Book_Id                  = Ibm.Inv_Book_Id
+             And Ibm.Inv_Book_Id                 = Unit.Inv_Book_Id
+             And Unit.Inv_Book_Id                = Ibm.Inv_Book_Id
+             and pm.Void_Approved_By             = void_by_mt.employee_id(+)
+           --  and nvl(pm.Void_Approved_By,-1)     = NVL(:PARM_VOID_BY,nvl(pm.Void_Approved_By,-1))
+             And pm.Pos_Date Between :PARM_FROM_DATE And :PARM_TO_DATE
+
+             &PARM_WHERE
+            --AND unit.pos_unit_id = 2
+           Group By Pd.Item_Id,
+                    pd.Item_Desc,
+                    PD.ITEM_CODE,
+                    To_Char(Pm.Pos_Date, 'YYYYMM'),
+                    To_Char(Pm.Pos_Date, 'MON-YY'),
+                    pd.menu,
+                    pd.Catagory
+                   ,pd.catagory_id
+                   ,pd.menu_id
+                   ,pd.Item_Rate_In_Func_Curr
+                   ,unit.Pos_Unit_Desc
+                   
+      )q1     
+           
+   Group By
+   q1.item_id
+,q1.menu
+,q1.menu_id
+,q1.catagory
+,q1.catagory_id
+,q1.im_name     
+,q1.Item_Rate_In_Func_Curr
+,q1.item_code
+,q1.pos_unit_desc 
+--Order By q1.item_code 
+
+------------
+Union All  ---------This clause is added to match this report with void item criteria report
+------------
+
+Select
+ sum(q1.net_qty)  net_qty
+,sum(q1.net_amt)  net_amt
+,Sum(q1.stax_amount) stax_amount
+,q1.item_id
+,q1.menu
+,q1.menu_id
+,q1.catagory
+,q1.catagory_id
+,q1.im_name
+,q1.Item_Rate_In_Func_Curr*sum(q1.void_qty)  EXC
+--,sum(q1.void_qty)                           void_qty
+,q1.Item_Rate_In_Func_Curr
+,q1.item_code
+,q1.pos_unit_desc unit_desc
+-----------this query is taken from monthly menu listwise report 
+-----------due to when client match this report with monthly menu listwise report
+---------- amount mismatch  (by amir 02-07-14)
+
+From 
+
+ (                         
+ Select
+  Trunc(Sum(Pd.Sqty)) Net_Qty,
+	sum(nvl(pd.samt,0)) EXE,
+  Sum(pd.Void_Qty)  void_qty,
+  ((/*(Sum(Nvl(Pd.void_qty, 0)))*pd.Item_Rate_In_Func_Curr*/sum(nvl(pd.samt,0)) + Sum(Nvl(Pd.Stax, 0)) -
+                 Sum(Decode(nvl(Pm.Disc_Amount,0), 0, 0, Pd.Samt * Pm.Disc_Amount / 100)))) Net_Amt
+
+           ,To_Char(Pm.Pos_Date, 'YYYYMM') Ord_Year_Mon,
+          
+           
+           To_Char(Pm.Pos_Date, 'MON-YY') Month
+           ,Sum(nvl(pd.stax,0)) stax_amount
+           ,Pd.Item_Id,
+           pd.Item_Desc,
+           pd.Menu,
+           pd.Catagory
+          ,pd.catagory_id 
+          ,pd.menu_id
+          ,pd.Item_Rate_In_Func_Curr
+          ,pd.item_code
+          ,unit.Pos_Unit_Desc
+          , '(' || PD.ITEM_CODE || ')-' || PD.ITEM_DESC IM_NAME
+            From Yum_Pos_Mt Pm,
+                 Inv_Books_Mt Ibm,
+                 Yum_Pos_Unit Unit,
+                 employee_mt  void_by_mt,
+                 (Select d.Pos_Id,
+                         d.Item_Id,
+                         itm.Item_Code,
+                         Itm.Item_Desc,
+                         Seg2.Segment_Value_Desc || '( ' || Seg2.Segment_Value || ' )' Menu,
+                         Seg3.Segment_Value_Desc || '( ' || Seg3.Segment_Value || ' )' Catagory
+                         ,seg3.Segment_Value                                            catagory_id
+                         ,seg2.Segment_Value                                            menu_id
+                         ,tt.Item_Rate_In_Func_Curr
+                         ,Sum(d.Quantity) Sqty,
+                         Sum(d.Amount) Samt,
+                         Sum(Nvl(d.Stax_Amount, 0)) Stax
+
+                         ,Trunc(Sum(d.Quantity)) Net_Qty,
+                         ((Sum(Nvl(d.Amount, 0)) + Sum(Nvl(d.Stax_Amount, 0)) -
+                 Sum(Decode(Pm.Disc_Amount, 0, 0, d.Amount * Pm.Disc_Amount / 100)))) Net_Amt
+                 ,Sum(vdet.Void_Qty)  void_qty
+                    From Yum_Pos_Mt             pm,
+                         Yum_Pos_Det            d
+                        ,inv_books_mt           ibm
+                        ,Yum_Pos_Unit           unit
+                        ,Items_Mt               Itm
+                        ,Detail_Price_List      tt
+                        ,Price_List_Grp_Det     m
+                        ,Items_Category         Icat
+                        ,Code_Combinations      Cc
+                        ,Wiz_Segment03          Seg3
+                        ,Wiz_Segment02          Seg2
+                        ,Yum_Pos_Void_Det       Vdet
+                        ,employee_mt            void_by_det
+                   Where pm.inv_book_id          = ibm.Inv_Book_Id
+                   And ibm.Inv_Book_Id          = unit.Inv_Book_Id
+                   And pm.Pos_Id                 = d.Pos_Id
+                   And D.Pos_Det_Id              = vdet.Pos_Det_Id
+                   --And ibm.Inv_Book_Id            =
+                   And pm.Pos_Date Between :PARM_FROM_DATE And :PARM_TO_DATE
+                   And DECODE(:PARM_VOID_SALE_YN,'Y',1,'N',0,'B',1) = 1
+                   And d.Item_Id                = itm.Item_Id
+                   And tt.Item_Id               = itm.Item_Id
+                   And tt.Price_List_Grp_Det_Id = m.Price_List_Grp_Det_Id
+                   And itm.Item_Id              = icat.Item_Id
+                   And icat.Code_Combination_Id = cc.Code_Combination_Id
+                   And Cc.Segment_Id03          = Seg3.Segment_Id
+                   And Seg3.Structure_Id        = Cc.Structure_Id
+                   And Cc.Segment_Id02          = Seg2.Segment_Id
+                   And Seg2.Structure_Id        = Cc.Structure_Id
+                   and d.Void_Approved_By                = void_by_det.employee_id(+)
+                   and nvl(d.Void_Approved_By,-1) = NVL(:PARM_VOID_BY,nvl(d.Void_Approved_By,-1))
+                   Group By d.Pos_Id, d.Item_Id
+                   ,Itm.Item_Desc,
+                   itm.item_code,
+                   Seg2.Segment_Value_Desc || '( ' || Seg2.Segment_Value || ' )' ,
+                   Seg3.Segment_Value_Desc || '( ' || Seg3.Segment_Value || ' )'
+                   ,seg3.Segment_Value
+                   ,seg2.Segment_Value
+                   ,tt.Item_Rate_In_Func_Curr
+                   
+                   ) Pd
+                   
+            ------------
+            ,(Select Pt.Pos_Id,
+               t.Table_Id,
+               t.Table_No,
+               Pf.Floor_Id,
+               Pf.Floor_Desc,
+               Unit.Pos_Unit_Id,
+               Unit.Pos_Unit_Desc
+          From Yum_Pos_Table_Mt   Pt,
+               Yum_Table          t,
+               Yum_Pos_Floor      Pf,
+               Yum_Pos_Unit_Floor Fl,
+               Yum_Pos_Unit       Unit
+         Where Pt.Table_Id = t.Table_Id
+           And t.Floor_Id = Pf.Floor_Id
+           And Pf.Active_Yn = 1
+           And t.Active_Yn = 1
+           And Pf.Floor_Id = Fl.Floor_Id
+           And Fl.Pos_Unit_Id = Unit.Pos_Unit_Id &Parm_Where_Unit
+         Order By Pt.Pos_Table_Id, Pt.Pos_Id) Pos_t
+            
+            ------------
+                   
+           Where Pm.Pos_Id                       = Pd.Pos_Id
+             And Pm.Inv_Book_Id                  = Ibm.Inv_Book_Id
+             And Ibm.Inv_Book_Id                 = Unit.Inv_Book_Id
+             And Unit.Inv_Book_Id                = Ibm.Inv_Book_Id
+             And pm.Pos_Id                       = pos_t.pos_id
+             and pm.Void_Approved_By             = void_by_mt.employee_id(+)
+           --  and nvl(pm.Void_Approved_By,-1)              = NVL(:PARM_VOID_BY,nvl(pm.Void_Approved_By,-1))
+             And pm.Pos_Date Between :PARM_FROM_DATE And :PARM_TO_DATE
+
+             &PARM_WHERE
+            --AND unit.pos_unit_id = 2
+           Group By Pd.Item_Id,
+                    pd.Item_Desc,
+                    PD.ITEM_CODE,
+                    To_Char(Pm.Pos_Date, 'YYYYMM'),
+                    To_Char(Pm.Pos_Date, 'MON-YY'),
+                    pd.menu,
+                    pd.Catagory
+                   ,pd.catagory_id
+                   ,pd.menu_id
+                   ,pd.Item_Rate_In_Func_Curr
+                   ,unit.Pos_Unit_Desc
+                   
+      )q1     
+           
+   Group By
+   q1.item_id
+,q1.menu
+,q1.menu_id
+,q1.catagory
+,q1.catagory_id
+,q1.im_name     
+,q1.Item_Rate_In_Func_Curr
+,q1.item_code
+,q1.pos_unit_desc 
+--Order By q1.item_code 
+ )Q2
+ 
+ Group By
+ q2.item_id
+,q2.menu
+,q2.menu_id
+,q2.catagory
+,q2.catagory_id
+,q2.im_name
+,q2.Item_Rate_In_Func_Curr
+,q2.item_code
+,q2.unit_desc 
+ Order By Q2.ITEM_CODE
+ 

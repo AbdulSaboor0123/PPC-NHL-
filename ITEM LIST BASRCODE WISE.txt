@@ -1,0 +1,16 @@
+select imt.item_code
+       ,imt.item_desc 
+       ,IMT.ITEM_BAR_CODE
+       ,case when ascii(imt.item_bar_code) in (89,40,66) then
+             imt.item_bar_code
+         end case1
+         , case when ascii(imt.item_bar_code) not in (89,40,66) then
+             to_number(imt.item_bar_code)
+         end case2
+       ,itype.item_type_desc
+       ,to_char(imt.entered_date_time,'dd-mm-yyyy') entered_date
+from items_mt imt
+     ,wiz_item_type_mt itype
+where imt.item_type_id = itype.item_type_id
+&PARM_WHERE
+ORDER BY  case1,case2  DESC

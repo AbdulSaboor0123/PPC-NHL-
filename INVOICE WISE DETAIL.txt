@@ -1,0 +1,74 @@
+SELECT MT.POS_NO SER_NO,
+       MT.POS_DATE,
+      TO_CHAR(MT.IN_TIME ,' HH24:MI:SS') time ,
+        '( ' || DECODE(RECT.PAYMENT_MODE, 'CA', 'Cash', 'CR', 'Credit Card','CC','Cash/Credit Card') || ' )' NEW_PAY_MOD,
+      RECT.GROSS_CA_AMOUNT,
+      RECT.GROSS_CR_AMOUNT,
+       ---------------------------------
+       ITM.ITEM_CODE,
+       '( '|| ITM.ITEM_CODE|| ' ) '|| ITM.ITEM_DESC  ITEM_DESC,
+       DET.QUANTITY,
+       DET.AMOUNT,
+       POS_T.POS_UNIT_ID,
+        POS_T.POS_UNIT_DESC,
+       ------------------
+       POS_T.TABLE_NO ,
+       MT.POS_ID ,
+         '( '||MT.COVERS||' )' COVERS,
+      POS_T.STAX_G ,
+     '( ' || POS_T.STAX_G ||' %'|| ' )' TAX_GROUP_DESC ,
+    '( '||NVL(MT.DISC_AMOUNT,0)||'%'||' )'   DIS_ID,
+     MT.DISC_AMOUNT
+      
+
+  
+
+  FROM         YUM_POS_MT       MT,
+               YUM_POS_DET      DET,
+               ITEMS_MT         ITM ,
+               YUM_POS_RECEIPT  RECT,
+               
+      --------------------
+ (SELECT W.POS_ID, YW.WAITER_ID, YW.WAITER_TYPE
+          FROM YUM_POS_WAITER W, YUM_WAITER YW
+         WHERE W.WAITER_ID = YW.WAITER_ID
+         &PARM_WHERE_W
+           AND W.HEAD_YN = 1) POS_W,         
+         
+       --------------------
+       ( SELECT PT.POS_ID,
+               T.TABLE_ID,
+               T.TABLE_NO,
+               PF.FLOOR_ID,
+               PF.FLOOR_DESC,
+               UNIT.POS_UNIT_ID,
+               UNIT.POS_UNIT_DESC,
+               SUBSTR(STAX.STAX_GROUP_DESC,1,2) STAX_G 
+          FROM YUM_POS_TABLE_MT   PT,
+               YUM_TABLE          T,
+               YUM_POS_FLOOR      PF,
+               YUM_POS_UNIT_FLOOR FL,
+               YUM_POS_UNIT       UNIT,
+              STAX_GROUP_MT       STAX
+
+         WHERE PT.TABLE_ID = T.TABLE_ID
+           AND T.FLOOR_ID = PF.FLOOR_ID
+           AND PF.ACTIVE_YN    = 1
+           AND T.ACTIVE_YN     = 1
+           AND PT.MAIN_TABLE_YN=1
+           AND PF.FLOOR_ID = FL.FLOOR_ID
+           AND FL.POS_UNIT_ID = UNIT.POS_UNIT_ID
+          AND UNIT.SALE_TAX_GRP=STAX.STAX_GROUP_ID
+&PARM_WHERE_F
+
+           ORDER BY PT.POS_TABLE_ID, PT.POS_ID) POS_T
+
+  
+ WHERE MT.POS_ID        = POS_T.POS_ID
+   AND MT.POS_ID        = DET.POS_ID
+   AND DET.ITEM_ID      = ITM.ITEM_ID
+   AND det.void_line_yn = 0
+   AND MT.POS_ID        = RECT.POS_ID
+   AND MT.POS_ID       = POS_W.POS_ID
+
+&PARM_WHERE

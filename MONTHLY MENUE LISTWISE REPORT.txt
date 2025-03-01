@@ -1,0 +1,67 @@
+Select
+
+ q2.ord_year_mon
+,q2.Month
+,q2.item_id
+,q2.item_desc
+,q1.catagory
+,q1.menu
+,Sum(decode(q1.join_id,q2.join_id,q1.net_amount,to_number(0))) net_amt
+,sum(decode(q1.join_id,q2.join_id,q1.net_qty,to_number(0)))  net_qty
+
+
+
+From
+(Select
+  t.Ord_Year_Mon
+ ,t.Mon
+ ,t.Item_Id
+ ,t.Item_Desc
+ ,t.Menu
+ ,t.Catagory
+ ,t.Net_Qty
+ ,t.Net_Amount
+ ,t.Ord_Year_Mon||t.Item_Id/*||t.Catagory*/ join_id
+From Temp_Yum_Mon_Ws_Sale_Report t
+--Where t.catagory = 'SPECIAL IFTAR BUFFET( 13 )'
+)q1
+
+,(
+  Select
+  td.Ord_Year_Mon||icat.Item_Id/*||icat.Catagory*/ join_id
+ ,td.ord_year_mon
+ ,td.Month
+ ,icat.item_id
+ ,icat.item_desc
+
+From
+
+ (Select
+ Distinct
+ To_Char(td.Daily_Date, 'YYYYMM') Ord_Year_Mon,
+ To_Char(td.Daily_Date, 'MON-YY') Month
+ From temp_dates td
+  )Td
+  
+ , (Select t.Item_Id,t.Item_Desc
+  From Temp_Yum_Mon_Ws_Sale_Report t
+  Group By t.Item_Id,t.item_desc
+  )icat
+ 
+ Group By
+ td.Ord_Year_Mon||icat.Item_Id/*||icat.Catagory*/
+ ,td.ord_year_mon
+ ,td.Month
+ ,icat.item_id
+ ,icat.item_desc
+ )q2
+--Where q1.Join_id = q2.join_id(+)
+Group By q2.join_id
+,q2.ord_year_mon
+,q2.Month
+,q2.item_id
+,q1.catagory
+,q2.item_desc
+,q1.menu 
+ --Where q2.Join_id = q1.join_id(+)
+ 

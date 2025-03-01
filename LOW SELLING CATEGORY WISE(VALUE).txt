@@ -1,0 +1,62 @@
+SELECT SUM(D1.GROSS_AMOUNT) G_AMOUNT, D1.CATAGORY, D1.POS_UNIT_DESC
+  FROM (SELECT ' ( ' || SEG2.SEGMENT_VALUE_DESC || ' ) ' ||
+               SEG3.SEGMENT_VALUE_DESC CATAGORY,
+               POS_T.POS_UNIT_dESC,
+               SUM(ROUND((DET.AMOUNT) -
+                         ROUND((NVL(DET.AMOUNT, 0) * NVL(POS.DISC_AMOUNT, 0)) / 100,
+                               2) + ROUND(NVL(DET.STAX_AMOUNT, 0), 2),
+                         2)) GROSS_AMOUNT
+        
+          FROM YUM_POS_MT POS,
+               Employee_Mt      Emt,
+               Inv_Books_Mt     Ib,
+               Yum_Pos_Receipt  Rec, 
+               YUM_POS_DET DET,
+               ITEMS_MT ITM,
+               ITEMS_CATEGORY IC,
+               VIEW_CODE_COMBINATIONS VC,
+               CODE_COMBINATIONS CC,
+               WIZ_SEGMENT02 SEG2,
+               WIZ_SEGMENT03 SEG3,
+               (SELECT SUBSTR(STAX.STAX_GROUP_DESC, 1, 2) STAX_G, 
+                UNIT.POS_UNIT_DESC, PT.POS_ID
+                  FROM YUM_POS_TABLE_MT   PT,
+                       YUM_TABLE          T,
+                       YUM_POS_FLOOR      PF,
+                       YUM_POS_UNIT_FLOOR FL,
+                       YUM_POS_UNIT       UNIT,
+                       STAX_GROUP_MT      STAX
+                 WHERE PT.TABLE_ID        = T.TABLE_ID
+                   AND T.FLOOR_ID         = PF.FLOOR_ID
+                   AND PF.ACTIVE_YN       = 1
+                   AND T.ACTIVE_YN        = 1
+                   AND PT.MAIN_TABLE_YN   = 1
+                   AND PF.FLOOR_ID        = FL.FLOOR_ID
+                   AND FL.POS_UNIT_ID     = UNIT.POS_UNIT_ID
+                   AND UNIT.SALE_TAX_GRP  = STAX.STAX_GROUP_ID
+                 &PARM_WHERE_U
+                 ORDER BY PT.POS_TABLE_ID, PT.POS_ID) POS_T
+         WHERE DET.ITEM_ID                 = ITM.ITEM_ID
+           AND DET.VOID_LINE_YN            = 0
+           AND ITM.ITEM_ID                 = IC.ITEM_ID
+           AND IC.STRUCTURE_ID             = VC.STRUCTURE_ID
+           AND IC.CODE_COMBINATION_ID      = VC.CODE_COMBINATION_ID
+           AND VC.CODE_COMBINATION_ID      = CC.CODE_COMBINATION_ID
+           AND CC.STRUCTURE_ID             = SEG2.STRUCTURE_ID
+           AND CC.SEGMENT_ID02             = SEG2.SEGMENT_ID
+           AND CC.STRUCTURE_ID             = SEG3.STRUCTURE_ID
+           AND CC.SEGMENT_ID03             = SEG3.SEGMENT_ID
+           AND POS.POS_ID                  = DET.POS_ID
+           AND POS.POS_ID                  = POS_T.POS_ID 
+           AND Pos.Inv_Book_Id             = Ib.Inv_Book_Id
+           AND Pos.Entered_By              = Emt.Employee_Id(+)
+           And Pos.Pos_Id                  = Rec.Pos_Id
+
+   AND POS.VOID_YN=0
+   AND POS.SETTLED_YN=1 
+
+           &PARM_WHERE
+         GROUP BY SEG2.SEGMENT_VALUE_DESC, SEG3.SEGMENT_VALUE_DESC,
+         POS_T.POS_UNIT_dESC) D1
+ GROUP BY D1.CATAGORY,D1.POS_UNIT_DESC
+ ORDER BY 1 ASC

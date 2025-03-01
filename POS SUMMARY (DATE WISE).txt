@@ -1,0 +1,252 @@
+Select
+-------------------------Net Amount----------------------------------
+ Ppdet.Dnet_Amnt Deatil_Net_Amnt,
+ --------------------discount Amount----------------------------------
+ Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2) Disc_Amnt,
+ --------------------tax Amount---------------------------------------
+ Round(Ppdet.dnet_stax_Amnt,2) Tax_Amnt,
+ --------------------Gross Amount-------------------------------------
+ Round(((Ppdet.Dnet_Amnt) -
+       Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+       Round(Ppdet.dnet_stax_Amnt,2),
+       2) Gross_Amnt,
+ ---------------------------------------------------------------------
+ Rec.Gross_Ca_Amount Cash_Amnt,
+ Rec.Gross_Cr_Amount Credit_Amnt,
+ Decode(Rec.Payment_Mode, 'CA', 'Cash', 'CR', 'Credit Card') Pay_Mod,
+ Pos_t.Unit_Desc,
+ Pos.Pos_No Invoice_No,
+ To_Char(Pos.In_Time, 'DD-MM-YY HH24:MI') In_Time,
+ Pos.Covers,
+ Pos.Pos_Date Invoice_Date,
+ Pos_w.Waiter_Type,
+ EMT.First_Name||' '||EMT.Last_Name OPERATOR_BY,
+ Null Status
+
+  From Yum_Pos_Mt Pos,
+       Employee_Mt Emt,
+       Inv_Books_Mt Ib,
+       Yum_Pos_Receipt Rec,
+       (Select w.Pos_Id, Yw.Waiter_Id, Yw.Waiter_Type
+          From Yum_Pos_Waiter w, Yum_Waiter Yw
+         Where w.Waiter_Id = Yw.Waiter_Id &Parm_Where_w
+           And w.Head_Yn = 1) Pos_w,
+       
+       (Select Pdet.Pos_Id, Sum(Pdet.Amount) Dnet_Amnt,sum(pdet.stax_amount) dnet_stax_Amnt
+          From Yum_Pos_Det Pdet
+         Where Pdet.Void_Line_Yn = 0
+         Group By Pdet.Pos_Id) Ppdet,
+       
+       (Select Pt.Pos_Id,
+               Unit.Pos_Unit_Desc Unit_Desc,
+               Substr(Stax.Stax_Group_Desc, 1, 2) Stax_g
+          From Yum_Pos_Table_Mt   Pt,
+               Yum_Table          t,
+               Yum_Pos_Floor      Pf,
+               Yum_Pos_Unit_Floor Fl,
+               Yum_Pos_Unit       Unit,
+               Stax_Group_Mt      Stax
+         Where Pt.Table_Id = t.Table_Id
+           And t.Floor_Id = Pf.Floor_Id
+           And Pf.Active_Yn = 1
+           And t.Active_Yn = 1
+           AND PT.MAIN_TABLE_YN  =1
+           And Pf.Floor_Id = Fl.Floor_Id
+           And Fl.Pos_Unit_Id = Unit.Pos_Unit_Id
+           And Unit.Sale_Tax_Grp = Stax.Stax_Group_Id &Parm_Where_u
+         Order By Pt.Pos_Table_Id, Pt.Pos_Id) Pos_t
+
+ Where Pos.Inv_Book_Id = Ib.Inv_Book_Id
+   And Pos.Entered_By = Emt.Employee_Id(+)
+   And Pos.Pos_Id = Ppdet.Pos_Id
+   And Pos.Pos_Id = Rec.Pos_Id
+   And Pos.Pos_Id = Pos_t.Pos_Id
+   And Pos.Pos_Id = Pos_w.Pos_Id
+   AND POS.VOID_YN=0
+   AND POS.SETTLED_YN=1 
+   And Rec.Payment_Mode In ('CA', 'CR') 
+   &Parm_Where
+
+Union All
+
+Select
+-----------------------DETAIL Net Amount------------------------------
+ Round(Ppdet.Dnet_Amnt *
+       (((((Ppdet.Dnet_Amnt) -
+       Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+       Round(Ppdet.dnet_stax_Amnt,2)) -
+       Gross_Cr_Amount) /
+       ((((Ppdet.Dnet_Amnt) -
+       Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+       Round(Ppdet.dnet_stax_Amnt,2)))),
+       2) Deatil_Net_Amnt,
+ -------------------------DISCOUNT Amount----------------------------------
+ Round(((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100) *
+       ((((Ppdet.Dnet_Amnt) -
+       Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+       Round(Ppdet.dnet_stax_Amnt,2)) -
+       Gross_Cr_Amount) /
+       ((((Ppdet.Dnet_Amnt) -
+       Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+       Round(Ppdet.dnet_stax_Amnt,2))),
+       2) Disc_Amnt,
+ -------------------------tax Amount--------------------------------------
+ 
+ Round(Round(((Ppdet.Dnet_Amnt) * Pos_t.Stax_g) / 100, 2) *
+       ((((Ppdet.Dnet_Amnt) -
+        Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+        Round(Ppdet.dnet_stax_Amnt,2)) -
+        Gross_Cr_Amount) /
+       ((((Ppdet.Dnet_Amnt) -
+        Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+        Round(Ppdet.dnet_stax_Amnt,2))),
+       2) Tax_Amnt,
+ -------------------------Gross Amount-----------------------------------          
+ (((Ppdet.Dnet_Amnt) -
+ Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+ Round(Ppdet.dnet_stax_Amnt,2)) *
+ ((((Ppdet.Dnet_Amnt) -
+ Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+ Round(Ppdet.dnet_stax_Amnt,2)) - Gross_Cr_Amount) /
+ ((((Ppdet.Dnet_Amnt) -
+ Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+ Round(Ppdet.dnet_stax_Amnt,2))) Gross_Amnt,
+ 
+ Rec.Gross_Ca_Amount Cash_Amnt,
+ Rec.Gross_Cr_Amount Credit_Amnt,
+ 'Cash' Pay_Mod,
+ Pos_t.Unit_Desc,
+ Pos.Pos_No Invoice_No,
+ To_Char(Pos.In_Time, 'DD-MM-YY HH24:MI') In_Time,
+ Pos.Covers,
+ Pos.Pos_Date Invoice_Date,
+ Pos_w.Waiter_Type,
+ EMT.First_Name||' '||EMT.Last_Name OPERATOR_BY,
+ '*' Status
+
+  From Yum_Pos_Mt Pos,
+       Employee_Mt Emt,
+       Inv_Books_Mt Ib,
+       Yum_Pos_Receipt Rec,
+       (Select w.Pos_Id, Yw.Waiter_Id, Yw.Waiter_Type
+          From Yum_Pos_Waiter w, Yum_Waiter Yw
+         Where w.Waiter_Id = Yw.Waiter_Id &Parm_Where_w
+           And w.Head_Yn = 1) Pos_w,
+       (Select Pdet.Pos_Id, Sum(Pdet.Amount) Dnet_Amnt,sum(pdet.stax_amount) dnet_stax_Amnt
+          From Yum_Pos_Det Pdet
+         Where Pdet.Void_Line_Yn = 0
+         Group By Pdet.Pos_Id) Ppdet,
+       (Select Pt.Pos_Id,
+               Unit.Pos_Unit_Desc Unit_Desc,
+               Substr(Stax.Stax_Group_Desc, 1, 2) Stax_g
+          From Yum_Pos_Table_Mt   Pt,
+               Yum_Table          t,
+               Yum_Pos_Floor      Pf,
+               Yum_Pos_Unit_Floor Fl,
+               Yum_Pos_Unit       Unit,
+               Stax_Group_Mt      Stax
+         Where Pt.Table_Id = t.Table_Id
+           And t.Floor_Id = Pf.Floor_Id
+           And Pf.Active_Yn = 1
+           And t.Active_Yn = 1
+AND PT.MAIN_TABLE_YN  =1
+           And Pf.Floor_Id = Fl.Floor_Id
+           And Fl.Pos_Unit_Id = Unit.Pos_Unit_Id
+           And Unit.Sale_Tax_Grp = Stax.Stax_Group_Id &Parm_Where_u
+         Order By Pt.Pos_Table_Id, Pt.Pos_Id) Pos_t
+
+ Where Pos.Inv_Book_Id = Ib.Inv_Book_Id
+   And Pos.Entered_By = Emt.Employee_Id(+)
+   And Pos.Pos_Id = Ppdet.Pos_Id
+   And Pos.Pos_Id = Rec.Pos_Id
+   And Pos.Pos_Id = Pos_t.Pos_Id
+   And Pos.Pos_Id = Pos_w.Pos_Id
+   AND POS.VOID_YN=0
+   AND POS.SETTLED_YN=1 
+   And Rec.Payment_Mode In ('CC') 
+   &Parm_Where
+Union All
+
+Select
+-------------------------net Amount----------------------------------- 
+ Round(Ppdet.Dnet_Amnt *
+       ((Gross_Cr_Amount) /
+       ((((Ppdet.Dnet_Amnt) -
+       Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+       Round(Ppdet.dnet_stax_Amnt,2)))),
+       2) Deatil_Net_Amnt,
+ -------------------------Discount Amount----------------------------------- 
+ Round(((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100) *
+       (Gross_Cr_Amount) /
+       ((((Ppdet.Dnet_Amnt) -
+       Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+       Round(Ppdet.dnet_stax_Amnt,2))),
+       2) Disc_Amnt,
+ -------------------------tax Amount----------------------------------- 
+ Round(Round(((Ppdet.Dnet_Amnt) * Pos_t.Stax_g) / 100, 2) *
+       (Gross_Cr_Amount) /
+       ((((Ppdet.Dnet_Amnt) -
+        Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+        Round(Ppdet.dnet_stax_Amnt,2))),
+       2) Tax_Amnt,
+ -------------------------Gross Amount----------------------------------- 
+ (((Ppdet.Dnet_Amnt) -
+ Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+ Round(Ppdet.dnet_stax_Amnt,2)) * (Gross_Cr_Amount) /
+ ((((Ppdet.Dnet_Amnt) -
+ Round((Ppdet.Dnet_Amnt * Nvl(Pos.Disc_Amount, 0)) / 100, 2)) +
+ Round(Ppdet.dnet_stax_Amnt,2))) Gross_Amnt,
+ 
+ Rec.Gross_Ca_Amount Cash_Amnt,
+ Rec.Gross_Cr_Amount Credit_Amnt,
+ 'Credit Card' Pay_Mod,
+ Pos_t.Unit_Desc,
+ Pos.Pos_No Invoice_No,
+ To_Char(Pos.In_Time, 'DD-MM-YY HH24:MI') In_Time,
+ Pos.Covers,
+ Pos.Pos_Date Invoice_Date,
+ Pos_w.Waiter_Type,
+ EMT.First_Name||' '||EMT.Last_Name OPERATOR_BY,
+ '*' Status
+
+  From Yum_Pos_Mt Pos,
+       Employee_Mt Emt,
+       Inv_Books_Mt Ib,
+       Yum_Pos_Receipt Rec,
+       (Select w.Pos_Id, Yw.Waiter_Id, Yw.Waiter_Type
+          From Yum_Pos_Waiter w, Yum_Waiter Yw
+         Where w.Waiter_Id = Yw.Waiter_Id &Parm_Where_w
+           And w.Head_Yn = 1) Pos_w,
+       (Select Pdet.Pos_Id, Sum(Pdet.Amount) Dnet_Amnt,sum(pdet.stax_amount) dnet_stax_Amnt
+          From Yum_Pos_Det Pdet
+         Where Pdet.Void_Line_Yn = 0
+         Group By Pdet.Pos_Id) Ppdet,
+       (Select Pt.Pos_Id,
+               Unit.Pos_Unit_Desc Unit_Desc,
+               Substr(Stax.Stax_Group_Desc, 1, 2) Stax_g
+          From Yum_Pos_Table_Mt   Pt,
+               Yum_Table          t,
+               Yum_Pos_Floor      Pf,
+               Yum_Pos_Unit_Floor Fl,
+               Yum_Pos_Unit       Unit,
+               Stax_Group_Mt      Stax
+         Where Pt.Table_Id = t.Table_Id
+           And t.Floor_Id = Pf.Floor_Id
+           And Pf.Active_Yn = 1
+           And t.Active_Yn = 1
+           AND PT.MAIN_TABLE_YN  =1
+           And Pf.Floor_Id = Fl.Floor_Id
+           And Fl.Pos_Unit_Id = Unit.Pos_Unit_Id
+           And Unit.Sale_Tax_Grp = Stax.Stax_Group_Id &Parm_Where_u
+         Order By Pt.Pos_Table_Id, Pt.Pos_Id) Pos_t
+
+ Where Pos.Inv_Book_Id = Ib.Inv_Book_Id
+   And Pos.Entered_By = Emt.Employee_Id(+)
+   And Pos.Pos_Id = Ppdet.Pos_Id
+   And Pos.Pos_Id = Rec.Pos_Id
+   And Pos.Pos_Id = Pos_t.Pos_Id
+   And Pos.Pos_Id = Pos_w.Pos_Id
+   AND POS.VOID_YN=0
+   AND POS.SETTLED_YN=1 
+   And Rec.Payment_Mode In ('CC')
+    &Parm_Where

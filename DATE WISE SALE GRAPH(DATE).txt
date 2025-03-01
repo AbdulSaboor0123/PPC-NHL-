@@ -1,0 +1,58 @@
+SELECT 
+--------------------Gross Amount-------------------------------------
+
+SUM(ROUND(PPDET.DNET_AMNT,2) -
+           ROUND((PPDET.DNET_AMNT * NVL(POS.DISC_AMOUNT, 0)) / 100, 2) +
+           ROUND(PPDET.DNET_STAX_AMNT, 2))
+            GROSS_AMNT,
+
+
+         to_char(POS.Pos_Date,'dd-mm-yyyy')   Sales_Date
+
+
+  FROM YUM_POS_MT POS,
+     
+
+      Employee_Mt Emt,
+       Inv_Books_Mt Ib,
+       Yum_Pos_Receipt Rec,
+
+       (SELECT PDET.POS_ID, SUM(PDET.AMOUNT) DNET_AMNT ,SUM(PDET.STAX_AMOUNT) DNET_STAX_AMNT
+          FROM YUM_POS_DET PDET
+         WHERE PDET.VOID_LINE_YN = 0
+         GROUP BY PDET.POS_ID) PPDET,
+ 
+       (SELECT SUBSTR(STAX.STAX_GROUP_DESC, 1, 2) STAX_G, PT.POS_ID
+          FROM YUM_POS_TABLE_MT   PT,
+               YUM_TABLE          T,
+               YUM_POS_FLOOR      PF,
+               YUM_POS_UNIT_FLOOR FL,
+               YUM_POS_UNIT       UNIT,
+               STAX_GROUP_MT      STAX
+
+         WHERE 
+
+           PT.TABLE_ID = T.TABLE_ID
+           AND T.FLOOR_ID = PF.FLOOR_ID
+           AND PT.MAIN_TABLE_YN=1
+           AND PF.ACTIVE_YN = 1
+           AND T.ACTIVE_YN = 1
+           AND PF.FLOOR_ID = FL.FLOOR_ID
+           AND FL.POS_UNIT_ID = UNIT.POS_UNIT_ID
+           AND UNIT.SALE_TAX_GRP = STAX.STAX_GROUP_ID 
+          &PARM_WHERE_U
+         ORDER BY PT.POS_TABLE_ID, PT.POS_ID) POS_T
+
+ WHERE POS.POS_ID = PPDET.POS_ID
+   AND POS.POS_ID = POS_T.POS_ID
+
+    AND Pos.Inv_Book_Id = Ib.Inv_Book_Id
+   And   Pos.Entered_By = Emt.Employee_Id(+)
+   And   Pos.Pos_Id = Rec.Pos_Id
+   AND POS.VOID_YN=0
+   AND POS.SETTLED_YN=1 
+
+    &PARM_WHERE
+   GROUP BY POS.Pos_Date
+   ORDER BY  POS.Pos_Date
+ 
